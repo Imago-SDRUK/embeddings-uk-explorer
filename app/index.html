@@ -1,0 +1,1333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Imago UK similarity explorer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Source+Sans+3:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <script src="https://unpkg.com/pmtiles@3.2.0/dist/pmtiles.js"></script>
+    <style>
+        :root {
+            --imago-navy: #24226F;
+            --imago-grey: #B8BCD1;
+            --imago-green: #03CEA3;
+            --imago-orange: #FF8F42;
+            --imago-light-grey: #E2E5F3;
+            --imago-blue: #1877CF;
+            --imago-dark-grey: #8C91A8;
+            --imago-white: #FFFFFF;
+
+            --bg-primary: #4a4a49;
+            --bg-secondary: #3a3a39;
+            --bg-tertiary: #5a5a59;
+            --border-color: #6a6a69;
+            --text-primary: var(--imago-white);
+            --text-secondary: var(--imago-grey);
+            --text-muted: var(--imago-dark-grey);
+            --accent-selected: var(--imago-green);
+            --accent-similar: var(--imago-orange);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Source Sans 3', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* ── Header ──────────────────────────────────────────── */
+        header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+            z-index: 10;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon { height: 28px; display: flex; align-items: center; }
+        .logo-icon img { height: 100%; width: auto; }
+
+        h1 {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 16px;
+            font-weight: 500;
+            letter-spacing: -0.5px;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .db-status {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .db-status .spinner {
+            width: 12px;
+            height: 12px;
+            border: 2px solid var(--bg-tertiary);
+            border-top-color: var(--imago-green);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        .db-status.ready { display: none; }
+
+        .mode-btn {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            padding: 8px 12px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .mode-btn:hover {
+            background: var(--border-color);
+            border-color: var(--imago-green);
+        }
+
+        .mode-label { color: var(--text-muted); }
+        .mode-value { color: var(--imago-green); font-weight: 500; }
+        .mode-btn[data-mode="dissimilar"] .mode-value { color: var(--imago-orange); }
+        .mode-btn[data-mode="dissimilar"]:hover { border-color: var(--imago-orange); }
+
+        .mode-icon {
+            width: 14px; height: 14px;
+            fill: none; stroke: currentColor;
+            stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+        }
+
+        /* ── Main content ────────────────────────────────────── */
+        .main-content { flex: 1; display: flex; overflow: hidden; position: relative; }
+
+        /* ── Landing View ────────────────────────────────────── */
+        #landing-view { flex: 1; display: flex; position: relative; }
+        #landing-view.hidden { display: none; }
+        #landing-map { flex: 1; }
+
+        .map-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 2;
+            background: var(--bg-secondary);
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+
+        .tooltip-toggle-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 10px;
+            font-size: 11px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .tooltip-toggle-label input {
+            width: 12px; height: 12px;
+            accent-color: var(--imago-green);
+            cursor: pointer;
+        }
+
+        .tooltip-toggle-label:hover { color: var(--text-primary); }
+
+        /* ── Comparison View ─────────────────────────────────── */
+        #comparison-view {
+            flex: 1;
+            display: none;
+            flex-direction: column;
+        }
+
+        #comparison-view.visible { display: flex; }
+
+        .maps-container {
+            flex: 1;
+            display: flex;
+            gap: 2px;
+            background: var(--border-color);
+        }
+
+        .map-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-primary);
+        }
+
+        .map-header {
+            padding: 10px 16px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .map-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+        }
+
+        .zone-code {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .zone-code.selected { color: var(--imago-green); }
+        .zone-code.similar { color: var(--imago-orange); }
+
+        .map-wrapper { flex: 1; position: relative; }
+        .map-wrapper .maplibregl-map { height: 100%; width: 100%; }
+
+        /* ── Locator inset map ──────────────────────────────── */
+        .locator-inset {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 60px;
+            height: 80px;
+            background: rgba(58, 58, 57, 0.85);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            z-index: 2;
+            padding: 6px;
+            pointer-events: none;
+        }
+
+        .locator-inset svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* ── Controls Panel ──────────────────────────────────── */
+        .controls-panel {
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border-color);
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            gap: 32px;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .control-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .k-slider-container { display: flex; align-items: center; gap: 12px; }
+
+        .k-slider {
+            width: 120px; height: 4px;
+            -webkit-appearance: none; appearance: none;
+            background: var(--bg-tertiary);
+            border-radius: 2px; outline: none;
+        }
+
+        .k-slider::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none;
+            width: 16px; height: 16px;
+            background: var(--imago-green);
+            border-radius: 50%; cursor: pointer;
+            transition: transform 0.15s ease;
+        }
+
+        .k-slider::-webkit-slider-thumb:hover { transform: scale(1.2); }
+
+        .k-slider::-moz-range-thumb {
+            width: 16px; height: 16px;
+            background: var(--imago-green);
+            border: none; border-radius: 50%; cursor: pointer;
+        }
+
+        .k-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px; font-weight: 600;
+            color: var(--imago-green);
+            min-width: 24px; text-align: center;
+        }
+
+        .nav-controls { display: flex; align-items: center; gap: 8px; }
+
+        .nav-btn {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            padding: 8px 16px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .nav-btn:hover:not(:disabled) {
+            background: var(--border-color);
+            border-color: var(--text-secondary);
+        }
+
+        .nav-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .nav-btn svg { width: 14px; height: 14px; fill: currentColor; }
+
+        .position-indicator {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            color: var(--text-secondary);
+            padding: 0 12px;
+        }
+
+        .position-indicator span {
+            color: var(--imago-orange);
+            font-weight: 600;
+        }
+
+        .reset-btn {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            padding: 8px 16px;
+            background: transparent;
+            border: 1px solid var(--imago-green);
+            border-radius: 6px;
+            color: var(--imago-green);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-left: auto;
+        }
+
+        .reset-btn:hover {
+            background: var(--imago-green);
+            color: var(--bg-primary);
+        }
+
+        /* ── Loading overlay ─────────────────────────────────── */
+        .loading-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(10, 15, 20, 0.85);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 16px;
+            z-index: 9999;
+        }
+
+        .loading-overlay.visible { display: flex; }
+
+        .loading-spinner {
+            width: 48px; height: 48px;
+            border: 3px solid var(--bg-tertiary);
+            border-top-color: var(--imago-green);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        .loading-text {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── Hover tooltip on landing map ────────────────────── */
+        .area-tooltip {
+            position: absolute;
+            pointer-events: none;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            color: var(--text-primary);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            z-index: 5;
+            display: none;
+            white-space: nowrap;
+            transform: translate(-50%, -100%);
+            margin-top: -10px;
+        }
+
+        /* ── MapLibre overrides ──────────────────────────────── */
+        .maplibregl-ctrl-group {
+            background: var(--bg-secondary) !important;
+            border: 1px solid var(--border-color) !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
+        }
+
+        .maplibregl-ctrl-group button {
+            background-color: var(--bg-secondary) !important;
+            color: var(--text-primary) !important;
+        }
+
+        .maplibregl-ctrl-group button + button {
+            border-top: 1px solid var(--border-color) !important;
+        }
+
+        .maplibregl-ctrl-group button:hover {
+            background-color: var(--bg-tertiary) !important;
+        }
+
+        .maplibregl-ctrl-group button .maplibregl-ctrl-icon {
+            filter: invert(1);
+        }
+
+        .maplibregl-ctrl-attrib {
+            background: rgba(10, 15, 20, 0.8) !important;
+            color: var(--text-muted) !important;
+            font-size: 10px !important;
+        }
+
+        .maplibregl-ctrl-attrib a { color: var(--text-secondary) !important; }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <header>
+            <div class="header-left">
+                <div class="logo-icon">
+                    <img src="https://imago.ac.uk/static/ui/imago_logo.png" alt="IMAGO Data Service">
+                </div>
+                <h1>Imago UK similarity explorer</h1>
+            </div>
+            <div class="header-right">
+                <div id="db-status" class="db-status">
+                    <div class="spinner"></div>
+                    <span>Loading data engine…</span>
+                </div>
+                <button id="mode-btn" class="mode-btn" data-mode="similar">
+                    <span class="mode-label">Finding:</span>
+                    <span class="mode-value" id="mode-value">Most Similar</span>
+                    <svg class="mode-icon" viewBox="0 0 24 24"><polyline points="6,9 12,15 18,9"/></svg>
+                </button>
+            </div>
+        </header>
+
+        <div class="main-content">
+            <!-- Landing View -->
+            <div id="landing-view">
+                <div id="landing-map"></div>
+                <div class="map-controls">
+                    <label class="tooltip-toggle-label">
+                        <input type="checkbox" id="tooltip-toggle" checked>
+                        <span>Show labels</span>
+                    </label>
+                </div>
+                <div id="area-tooltip" class="area-tooltip"></div>
+            </div>
+
+            <!-- Comparison View -->
+            <div id="comparison-view">
+                <div class="maps-container">
+                    <div class="map-panel">
+                        <div class="map-header">
+                            <span class="map-label">Selected</span>
+                            <span id="selected-zone-code" class="zone-code selected">—</span>
+                        </div>
+                        <div class="map-wrapper">
+                            <div id="left-map" style="width:100%;height:100%;"></div>
+                            <div class="locator-inset" id="locator-left"></div>
+                        </div>
+                    </div>
+                    <div class="map-panel">
+                        <div class="map-header">
+                            <span class="map-label" id="neighbor-map-label">Similar 1 of 10</span>
+                            <span id="neighbor-zone-code" class="zone-code similar">—</span>
+                        </div>
+                        <div class="map-wrapper">
+                            <div id="right-map" style="width:100%;height:100%;"></div>
+                            <div class="locator-inset" id="locator-right"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="controls-panel">
+                    <div class="control-group">
+                        <span class="control-label">k value</span>
+                        <div class="k-slider-container">
+                            <input type="range" id="k-slider" class="k-slider" min="1" max="100" value="10">
+                            <span id="k-value" class="k-value">10</span>
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <div class="nav-controls">
+                            <button id="prev-btn" class="nav-btn" disabled>
+                                <svg viewBox="0 0 24 24"><polygon points="15,18 9,12 15,6"/></svg>
+                                Prev
+                            </button>
+                            <span id="position-indicator" class="position-indicator">
+                                <span>1</span> of <span>10</span>
+                            </span>
+                            <button id="next-btn" class="nav-btn">
+                                Next
+                                <svg viewBox="0 0 24 24"><polygon points="9,18 15,12 9,6"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <button id="reset-btn" class="reset-btn">← Reset View</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="loading-overlay" id="loading">
+        <div class="loading-spinner"></div>
+        <div class="loading-text" id="loading-text">Initialising, please wait…</div>
+    </div>
+
+    <script type="module">
+        // ─── Configuration ──────────────────────────────────────────────────
+        // PMTiles uses relative URL (resolved by pmtiles protocol)
+        const PMTILES_URL  = './uk_small_areas_2024.pmtiles';
+
+        // Parquet URLs must be absolute for DuckDB-WASM worker
+        const DATA_BASE_URL = new URL('./', window.location.href).href;
+        const NEIGHBORS_URL = `${DATA_BASE_URL}neighbors_2024.parquet`;
+        const CENTROIDS_URL = `${DATA_BASE_URL}area_centroids.parquet`;
+
+        const UK_BOUNDS = [[-8.2, 49.5], [2.0, 61.2]];
+
+        const BASEMAPS = {
+            positron: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+            positronNoLabels: 'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
+            satellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+            labels: 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+        };
+
+        const COLORS = {
+            navy: '#24226F',
+            blue: '#1877CF',
+            green: '#03CEA3',
+            orange: '#FF8F42',
+        };
+
+        // ─── State ──────────────────────────────────────────────────────────
+        const state = {
+            db: null,
+            dbReady: false,
+
+            selectedCode: null,
+            selectedRow: null,
+            similarCodes: [],
+            dissimilarCodes: [],
+            neighborGeoCache: {},
+
+            mode: 'similar',
+            currentIndex: 0,
+            k: 10,
+
+            landingMap: null,
+            leftMap: null,
+            rightMap: null,
+            isSyncing: false,
+            showTooltips: true,
+            hoveredAreaCode: null,
+        };
+
+        // ─── DOM ────────────────────────────────────────────────────────────
+        const $ = (id) => document.getElementById(id);
+        const el = {
+            landingView: $('landing-view'),
+            comparisonView: $('comparison-view'),
+            landingMapDiv: $('landing-map'),
+            leftMapDiv: $('left-map'),
+            rightMapDiv: $('right-map'),
+            selectedZoneCode: $('selected-zone-code'),
+            neighborZoneCode: $('neighbor-zone-code'),
+            neighborMapLabel: $('neighbor-map-label'),
+            kSlider: $('k-slider'),
+            kValue: $('k-value'),
+            prevBtn: $('prev-btn'),
+            nextBtn: $('next-btn'),
+            positionIndicator: $('position-indicator'),
+            resetBtn: $('reset-btn'),
+            modeBtn: $('mode-btn'),
+            modeValue: $('mode-value'),
+            dbStatus: $('db-status'),
+            tooltipToggle: $('tooltip-toggle'),
+            areaTooltip: $('area-tooltip'),
+            loading: $('loading'),
+            loadingText: $('loading-text'),
+            locatorLeft: $('locator-left'),
+            locatorRight: $('locator-right'),
+        };
+
+        // ─── PMTiles Protocol ───────────────────────────────────────────────
+        const protocol = new pmtiles.Protocol();
+        maplibregl.addProtocol('pmtiles', protocol.tile);
+
+        // ─── Locator Inset Maps ────────────────────────────────────────────
+        // UK coastline as [lon, lat] — projected with BNG-like Transverse Mercator
+
+        const GB_COAST = [
+            [-5.71,50.07],[-5.52,50.04],[-5.22,50.10],[-5.07,50.05],[-5.05,50.15],
+            [-4.80,50.30],[-4.65,50.34],[-4.20,50.35],[-3.85,50.22],[-3.50,50.43],
+            [-3.20,50.60],[-2.90,50.63],[-2.45,50.52],[-1.95,50.62],[-1.55,50.70],
+            [-1.20,50.73],[-0.93,50.73],[-0.85,50.66],[-0.20,50.77],[0.25,50.78],
+            [0.58,50.87],[0.85,50.92],[0.98,51.00],[1.20,51.08],[1.38,51.13],
+            [1.43,51.28],[1.42,51.38],[1.20,51.45],[1.05,51.48],[0.88,51.55],
+            [0.72,51.57],[0.95,51.75],[1.15,51.83],[1.28,51.95],[1.60,52.00],
+            [1.62,52.15],[1.75,52.48],[1.73,52.62],[1.55,52.85],[1.20,52.90],
+            [0.65,52.97],[0.34,52.92],[0.10,52.95],[0.33,53.12],[0.22,53.30],
+            [0.15,53.50],[0.05,53.62],[-0.15,53.63],[-0.25,53.73],[-0.20,54.08],
+            [-0.40,54.28],[-0.55,54.42],[-0.80,54.50],[-1.02,54.57],[-1.15,54.62],
+            [-1.35,54.90],[-1.45,55.01],[-1.52,55.13],[-1.60,55.30],[-1.62,55.58],
+            [-1.82,55.68],[-2.10,55.80],[-2.35,55.98],[-2.60,56.07],[-3.00,56.00],
+            [-3.18,56.20],[-2.80,56.33],[-2.60,56.45],[-2.73,56.53],[-2.50,56.70],
+            [-2.22,56.83],[-1.98,57.05],[-2.07,57.16],[-1.80,57.49],[-1.85,57.68],
+            [-2.85,57.68],[-3.38,57.63],[-3.80,57.60],[-3.90,57.80],[-3.52,57.85],
+            [-3.45,58.10],[-3.28,58.27],[-3.10,58.43],[-3.05,58.45],[-3.07,58.62],
+            [-3.50,58.60],[-3.98,58.56],[-4.50,58.50],[-4.97,58.45],[-5.00,58.32],
+            [-5.15,58.05],[-5.20,57.90],[-5.45,57.85],[-5.35,57.70],[-5.47,57.60],
+            [-5.65,57.45],[-5.80,57.40],[-5.65,57.28],[-5.80,57.10],[-5.52,57.25],
+            [-5.60,57.00],[-5.65,56.82],[-5.82,56.72],[-5.88,56.55],[-5.65,56.48],
+            [-5.48,56.30],[-5.55,56.00],[-5.62,55.80],[-5.60,55.60],[-5.40,55.42],
+            [-5.10,55.35],[-4.82,55.55],[-4.65,55.45],[-4.80,55.20],[-4.85,55.00],
+            [-5.00,54.85],[-4.85,54.65],[-4.35,54.65],[-3.80,54.82],[-3.60,54.87],
+            [-3.20,54.95],[-3.05,54.98],[-3.40,54.65],[-3.58,54.50],[-3.52,54.35],
+            [-3.25,54.12],[-3.05,54.07],[-2.90,53.90],[-3.02,53.75],[-3.00,53.60],
+            [-3.02,53.40],[-3.10,53.25],[-3.45,53.25],[-3.80,53.30],[-4.05,53.30],
+            [-4.25,53.42],[-4.55,53.30],[-4.30,53.22],[-4.17,53.13],[-4.50,52.85],
+            [-4.75,52.80],[-4.55,52.65],[-4.08,52.55],[-4.08,52.28],[-4.35,52.10],
+            [-4.65,52.05],[-4.95,51.98],[-5.07,51.87],[-5.30,51.87],[-5.20,51.73],
+            [-5.07,51.68],[-4.92,51.63],[-4.70,51.67],[-4.30,51.62],[-3.93,51.60],
+            [-3.63,51.55],[-3.43,51.48],[-3.18,51.42],[-2.95,51.52],[-2.68,51.55],
+            [-2.98,51.35],[-3.10,51.20],[-3.42,51.20],[-3.62,51.15],[-3.95,51.04],
+            [-4.20,51.00],[-4.55,50.90],[-4.75,50.67],[-4.95,50.35],[-5.20,50.18],
+            [-5.48,50.12],
+        ];
+
+        const NI_COAST = [
+            [-6.00,54.07],[-5.88,54.15],[-5.72,54.20],[-5.55,54.25],[-5.50,54.40],
+            [-5.45,54.58],[-5.65,54.65],[-5.80,54.75],[-5.75,54.85],[-5.95,55.05],
+            [-6.10,55.17],[-6.25,55.20],[-6.50,55.22],[-6.80,55.18],[-6.95,55.10],
+            [-7.15,55.05],[-7.30,55.15],[-7.45,55.05],[-7.55,54.80],[-7.70,54.55],
+            [-7.50,54.35],[-7.10,54.20],[-6.50,54.08],
+        ];
+
+        // BNG-like projection: equirectangular with cos(lat) correction, central meridian -2°
+        function projectBNG(lon, lat) {
+            const latRad = lat * Math.PI / 180;
+            return [(lon + 2) * Math.cos(latRad), lat];
+        }
+
+        // Pre-compute SVG paths and coordinate mapping
+        const locatorGeo = (() => {
+            const all = [...GB_COAST, ...NI_COAST].map(([ln, lt]) => projectBNG(ln, lt));
+            const xs = all.map(p => p[0]), ys = all.map(p => p[1]);
+            const pad = 0.15;
+            const ext = {
+                x0: Math.min(...xs) - pad, x1: Math.max(...xs) + pad,
+                y0: Math.min(...ys) - pad, y1: Math.max(...ys) + pad,
+            };
+            const w = ext.x1 - ext.x0, h = ext.y1 - ext.y0;
+            const svgW = 100, svgH = Math.round(h / w * svgW);
+
+            function toSVG([px, py]) {
+                return `${((px - ext.x0) / w * svgW).toFixed(1)},${((ext.y1 - py) / h * svgH).toFixed(1)}`;
+            }
+
+            const gbPath = 'M' + GB_COAST.map(([ln, lt]) => toSVG(projectBNG(ln, lt))).join(' L') + ' Z';
+            const niPath = 'M' + NI_COAST.map(([ln, lt]) => toSVG(projectBNG(ln, lt))).join(' L') + ' Z';
+
+            return { gbPath, niPath, svgW, svgH, ext, w, h };
+        })();
+
+        function initLocator(container) {
+            const svgNS = 'http://www.w3.org/2000/svg';
+            const svg = document.createElementNS(svgNS, 'svg');
+            svg.setAttribute('viewBox', `0 0 ${locatorGeo.svgW} ${locatorGeo.svgH}`);
+            svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+
+            const gb = document.createElementNS(svgNS, 'path');
+            gb.setAttribute('d', locatorGeo.gbPath);
+            gb.setAttribute('fill', '#5a5a59');
+            gb.setAttribute('stroke', '#8C91A8');
+            gb.setAttribute('stroke-width', '0.5');
+            svg.appendChild(gb);
+
+            const ni = document.createElementNS(svgNS, 'path');
+            ni.setAttribute('d', locatorGeo.niPath);
+            ni.setAttribute('fill', '#5a5a59');
+            ni.setAttribute('stroke', '#8C91A8');
+            ni.setAttribute('stroke-width', '0.5');
+            svg.appendChild(ni);
+
+            const dot = document.createElementNS(svgNS, 'circle');
+            dot.setAttribute('r', '3.5');
+            dot.setAttribute('cx', '0');
+            dot.setAttribute('cy', '0');
+            dot.setAttribute('fill', COLORS.green);
+            dot.style.display = 'none';
+            svg.appendChild(dot);
+
+            container.appendChild(svg);
+            return dot;
+        }
+
+        function lonLatToLocator(lon, lat) {
+            const [px, py] = projectBNG(lon, lat);
+            const { ext, w, h, svgW, svgH } = locatorGeo;
+            return {
+                x: (px - ext.x0) / w * svgW,
+                y: (ext.y1 - py) / h * svgH,
+            };
+        }
+
+        function updateLocatorDot(dot, lon, lat, color) {
+            const { x, y } = lonLatToLocator(lon, lat);
+            dot.setAttribute('cx', x.toFixed(1));
+            dot.setAttribute('cy', y.toFixed(1));
+            dot.setAttribute('fill', color);
+            dot.style.display = '';
+        }
+
+        const locatorDotLeft = initLocator(el.locatorLeft);
+        const locatorDotRight = initLocator(el.locatorRight);
+
+        // ─── DuckDB-WASM ────────────────────────────────────────────────────
+        async function initDuckDB() {
+            const DUCKDB_VERSION = '1.28.0';
+            const DUCKDB_CDN = `https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@${DUCKDB_VERSION}/dist`;
+
+            const duckdb = await import(`https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@${DUCKDB_VERSION}/+esm`);
+
+            const DUCKDB_BUNDLES = {
+                mvp: {
+                    mainModule: `${DUCKDB_CDN}/duckdb-mvp.wasm`,
+                    mainWorker: `${DUCKDB_CDN}/duckdb-browser-mvp.worker.js`,
+                },
+                eh: {
+                    mainModule: `${DUCKDB_CDN}/duckdb-eh.wasm`,
+                    mainWorker: `${DUCKDB_CDN}/duckdb-browser-eh.worker.js`,
+                },
+            };
+
+            const bundle = await duckdb.selectBundle(DUCKDB_BUNDLES);
+
+            // Fetch worker script as blob to avoid cross-origin Worker restriction
+            const workerResponse = await fetch(bundle.mainWorker);
+            const workerBlob = new Blob([await workerResponse.text()], { type: 'application/javascript' });
+            const workerUrl = URL.createObjectURL(workerBlob);
+            const worker = new Worker(workerUrl);
+
+            const logger = new duckdb.ConsoleLogger();
+            const db = new duckdb.AsyncDuckDB(logger, worker);
+            await db.instantiate(bundle.mainModule);
+
+            const conn = await db.connect();
+
+            state.db = conn;
+            state.dbReady = true;
+            el.dbStatus.classList.add('ready');
+            console.log('DuckDB-WASM ready');
+        }
+
+        function arrowTableToObjects(table) {
+            const columns = table.schema.fields.map(f => f.name);
+            const rows = [];
+            for (let i = 0; i < table.numRows; i++) {
+                const obj = {};
+                for (const col of columns) {
+                    const val = table.getChild(col).get(i);
+                    obj[col] = val;
+                }
+                rows.push(obj);
+            }
+            return rows;
+        }
+
+        async function queryOne(sql) {
+            const result = await state.db.query(sql);
+            const rows = arrowTableToObjects(result);
+            return rows[0] || null;
+        }
+
+        async function queryAll(sql) {
+            const result = await state.db.query(sql);
+            return arrowTableToObjects(result);
+        }
+
+        // ─── Landing Map ────────────────────────────────────────────────────
+        function initLandingMap() {
+            state.landingMap = new maplibregl.Map({
+                container: el.landingMapDiv,
+                style: {
+                    version: 8,
+                    sources: {
+                        'carto': {
+                            type: 'raster',
+                            tiles: ['https://a.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}@2x.png',
+                                    'https://b.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}@2x.png'],
+                            tileSize: 256,
+                            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+                        },
+                        'carto-labels': {
+                            type: 'raster',
+                            tiles: ['https://a.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}@2x.png',
+                                    'https://b.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}@2x.png'],
+                            tileSize: 256,
+                        },
+                        'areas': {
+                            type: 'vector',
+                            url: `pmtiles://${PMTILES_URL}`,
+                            promoteId: 'data_zone_code',
+                        },
+                    },
+                    layers: [
+                        { id: 'basemap', type: 'raster', source: 'carto' },
+                        {
+                            id: 'areas-fill',
+                            type: 'fill',
+                            source: 'areas',
+                            'source-layer': 'small_areas',
+                            paint: {
+                                'fill-color': [
+                                    'case',
+                                    ['boolean', ['feature-state', 'hover'], false],
+                                    COLORS.blue,
+                                    '#B8BCD1',
+                                ],
+                                'fill-opacity': [
+                                    'case',
+                                    ['boolean', ['feature-state', 'hover'], false],
+                                    0.4,
+                                    0.15,
+                                ],
+                            },
+                        },
+                        {
+                            id: 'areas-line',
+                            type: 'line',
+                            source: 'areas',
+                            'source-layer': 'small_areas',
+                            paint: {
+                                'line-color': [
+                                    'case',
+                                    ['boolean', ['feature-state', 'hover'], false],
+                                    COLORS.blue,
+                                    COLORS.navy,
+                                ],
+                                'line-width': [
+                                    'interpolate', ['linear'], ['zoom'],
+                                    5, ['case', ['boolean', ['feature-state', 'hover'], false], 1.5, 0.1],
+                                    8, ['case', ['boolean', ['feature-state', 'hover'], false], 2, 0.3],
+                                    12, ['case', ['boolean', ['feature-state', 'hover'], false], 3, 0.8],
+                                ],
+                            },
+                        },
+                        { id: 'labels', type: 'raster', source: 'carto-labels' },
+                    ],
+                },
+                center: [-3.5, 55.5],
+                zoom: 4.8,
+                minZoom: 4.8,
+                maxBounds: [[-14, 47], [6, 63]],
+                attributionControl: true,
+            });
+
+            state.landingMap.addControl(new maplibregl.NavigationControl(), 'top-left');
+
+            // Hover
+            let hoveredCode = null;
+
+            state.landingMap.on('mousemove', 'areas-fill', (e) => {
+                if (e.features.length === 0) return;
+                const feature = e.features[0];
+                const code = feature.properties.data_zone_code;
+                if (!code) return;
+
+                // Update hover state
+                if (hoveredCode !== null && hoveredCode !== code) {
+                    state.landingMap.setFeatureState(
+                        { source: 'areas', sourceLayer: 'small_areas', id: hoveredCode },
+                        { hover: false }
+                    );
+                }
+                hoveredCode = code;
+                state.landingMap.setFeatureState(
+                    { source: 'areas', sourceLayer: 'small_areas', id: hoveredCode },
+                    { hover: true }
+                );
+
+                // Tooltip
+                if (state.showTooltips) {
+                    el.areaTooltip.textContent = code;
+                    el.areaTooltip.style.display = 'block';
+                    el.areaTooltip.style.left = e.point.x + 'px';
+                    el.areaTooltip.style.top = e.point.y + 'px';
+                }
+
+                state.landingMap.getCanvas().style.cursor = 'pointer';
+            });
+
+            state.landingMap.on('mouseleave', 'areas-fill', () => {
+                if (hoveredCode !== null) {
+                    state.landingMap.setFeatureState(
+                        { source: 'areas', sourceLayer: 'small_areas', id: hoveredCode },
+                        { hover: false }
+                    );
+                    hoveredCode = null;
+                }
+                el.areaTooltip.style.display = 'none';
+                state.landingMap.getCanvas().style.cursor = '';
+            });
+
+            // Click
+            state.landingMap.on('click', 'areas-fill', async (e) => {
+                if (e.features.length === 0) return;
+                const code = e.features[0].properties.data_zone_code;
+                if (!code) return;
+                await selectArea(code);
+            });
+        }
+
+        // ─── Comparison Maps ────────────────────────────────────────────────
+        function createComparisonMap(container) {
+            const map = new maplibregl.Map({
+                container: container,
+                style: {
+                    version: 8,
+                    sources: {
+                        'satellite': {
+                            type: 'raster',
+                            tiles: [BASEMAPS.satellite],
+                            tileSize: 256,
+                            attribution: 'Tiles &copy; Esri',
+                        },
+                        'sat-labels': {
+                            type: 'raster',
+                            tiles: [BASEMAPS.labels],
+                            tileSize: 256,
+                        },
+                        'areas': {
+                            type: 'vector',
+                            url: `pmtiles://${PMTILES_URL}`,
+                        },
+                    },
+                    layers: [
+                        { id: 'satellite', type: 'raster', source: 'satellite' },
+                        {
+                            id: 'areas-fill-base',
+                            type: 'fill',
+                            source: 'areas',
+                            'source-layer': 'small_areas',
+                            paint: {
+                                'fill-color': COLORS.blue,
+                                'fill-opacity': 0.1,
+                            },
+                        },
+                        {
+                            id: 'areas-line-base',
+                            type: 'line',
+                            source: 'areas',
+                            'source-layer': 'small_areas',
+                            paint: {
+                                'line-color': COLORS.navy,
+                                'line-width': 0.5,
+                            },
+                        },
+                        // Highlight layer — will be filtered dynamically
+                        {
+                            id: 'areas-fill-highlight',
+                            type: 'fill',
+                            source: 'areas',
+                            'source-layer': 'small_areas',
+                            paint: {
+                                'fill-color': COLORS.green,
+                                'fill-opacity': 0.35,
+                            },
+                            filter: ['==', ['get', 'data_zone_code'], ''],
+                        },
+                        {
+                            id: 'areas-line-highlight',
+                            type: 'line',
+                            source: 'areas',
+                            'source-layer': 'small_areas',
+                            paint: {
+                                'line-color': COLORS.green,
+                                'line-width': 3,
+                            },
+                            filter: ['==', ['get', 'data_zone_code'], ''],
+                        },
+                        { id: 'sat-labels', type: 'raster', source: 'sat-labels' },
+                    ],
+                },
+                center: [-3, 54.5],
+                zoom: 6,
+                attributionControl: true,
+            });
+
+            return map;
+        }
+
+        function initComparisonMaps() {
+            state.leftMap = createComparisonMap(el.leftMapDiv);
+            state.rightMap = createComparisonMap(el.rightMapDiv);
+
+            state.leftMap.addControl(new maplibregl.NavigationControl(), 'top-left');
+
+            // Sync zoom only (user-initiated interactions, not programmatic fitBounds)
+            function syncZoom(source, target) {
+                source.on('zoom', (e) => {
+                    if (!e.originalEvent) return;
+                    target.setZoom(source.getZoom());
+                });
+            }
+            syncZoom(state.leftMap, state.rightMap);
+            syncZoom(state.rightMap, state.leftMap);
+        }
+
+        function setHighlight(map, code, color) {
+            map.setPaintProperty('areas-fill-highlight', 'fill-color', color);
+            map.setPaintProperty('areas-line-highlight', 'line-color', color);
+            map.setFilter('areas-fill-highlight', ['==', ['get', 'data_zone_code'], code]);
+            map.setFilter('areas-line-highlight', ['==', ['get', 'data_zone_code'], code]);
+        }
+
+        // ─── Area Selection ─────────────────────────────────────────────────
+        async function selectArea(code) {
+            if (!state.dbReady) {
+                el.loading.classList.add('visible');
+                el.loadingText.textContent = 'Initialising, please wait…';
+                // Wait for DB
+                while (!state.dbReady) {
+                    await new Promise(r => setTimeout(r, 200));
+                }
+                el.loading.classList.remove('visible');
+            }
+
+            el.loading.classList.add('visible');
+            el.loadingText.textContent = 'Looking up neighbors…';
+
+            try {
+                // Query neighbors
+                const row = await queryOne(
+                    `SELECT * FROM '${NEIGHBORS_URL}' WHERE area_code = '${code}'`
+                );
+
+                if (!row) {
+                    console.warn('Area not found in parquet:', code);
+                    el.loading.classList.remove('visible');
+                    return;
+                }
+
+                console.log('DEBUG row bbox:', JSON.stringify({
+                    bbox_minx: row.bbox_minx,
+                    bbox_miny: row.bbox_miny,
+                    bbox_maxx: row.bbox_maxx,
+                    bbox_maxy: row.bbox_maxy,
+                    centroid_lon: row.centroid_lon,
+                    centroid_lat: row.centroid_lat,
+                    area_code: row.area_code,
+                }));
+
+                state.selectedCode = code;
+                state.selectedRow = row;
+
+                // Extract neighbor codes
+                state.similarCodes = [];
+                state.dissimilarCodes = [];
+                for (let i = 1; i <= 100; i++) {
+                    const key = `sim_${String(i).padStart(2, '0')}`;
+                    if (row[key]) state.similarCodes.push(row[key]);
+                    const dkey = `dis_${String(i).padStart(2, '0')}`;
+                    if (row[dkey]) state.dissimilarCodes.push(row[dkey]);
+                }
+
+                // Cache selected area's geo
+                state.neighborGeoCache[code] = {
+                    centroid_lon: row.centroid_lon,
+                    centroid_lat: row.centroid_lat,
+                    bbox_minx: row.bbox_minx,
+                    bbox_miny: row.bbox_miny,
+                    bbox_maxx: row.bbox_maxx,
+                    bbox_maxy: row.bbox_maxy,
+                };
+
+                state.currentIndex = 0;
+
+                // Switch to comparison view
+                el.landingView.classList.add('hidden');
+                el.comparisonView.classList.add('visible');
+
+                // Initialize comparison maps lazily (first call only),
+                // after the container is visible and has real dimensions
+                if (!state.leftMap) {
+                    await new Promise(r => requestAnimationFrame(r));
+                    initComparisonMaps();
+                }
+
+                // Wait for maps to be ready
+                await Promise.all([
+                    waitForMapReady(state.leftMap),
+                    waitForMapReady(state.rightMap),
+                ]);
+
+                state.leftMap.resize();
+                state.rightMap.resize();
+
+                // Zoom left map to selected area
+                zoomToBbox(state.leftMap, state.neighborGeoCache[code]);
+                setHighlight(state.leftMap, code, COLORS.green);
+                updateLocatorDot(locatorDotLeft, row.centroid_lon, row.centroid_lat, COLORS.green);
+                el.selectedZoneCode.textContent = code;
+
+                // Show first neighbor
+                await showCurrentNeighbor();
+
+            } catch (err) {
+                console.error('Error selecting area:', err);
+            } finally {
+                el.loading.classList.remove('visible');
+            }
+        }
+
+        function waitForMapReady(map) {
+            return new Promise(resolve => {
+                if (map.isStyleLoaded()) {
+                    resolve();
+                } else {
+                    map.once('load', resolve);
+                }
+            });
+        }
+
+        // ─── Neighbor Navigation ────────────────────────────────────────────
+        function getCurrentCodes() {
+            return state.mode === 'similar' ? state.similarCodes : state.dissimilarCodes;
+        }
+
+        async function getNeighborGeo(code) {
+            if (state.neighborGeoCache[code]) return state.neighborGeoCache[code];
+
+            const row = await queryOne(
+                `SELECT * FROM '${CENTROIDS_URL}' WHERE area_code = '${code}'`
+            );
+
+            if (row) {
+                state.neighborGeoCache[code] = {
+                    centroid_lon: row.centroid_lon,
+                    centroid_lat: row.centroid_lat,
+                    bbox_minx: row.bbox_minx,
+                    bbox_miny: row.bbox_miny,
+                    bbox_maxx: row.bbox_maxx,
+                    bbox_maxy: row.bbox_maxy,
+                };
+            }
+            return state.neighborGeoCache[code] || null;
+        }
+
+        function zoomToBbox(map, geo) {
+            if (!geo) return;
+            const sw = [geo.bbox_minx, geo.bbox_miny];
+            const ne = [geo.bbox_maxx, geo.bbox_maxy];
+            map.fitBounds([sw, ne], { padding: 60, maxZoom: 15, duration: 800 });
+        }
+
+        async function showCurrentNeighbor() {
+            const codes = getCurrentCodes();
+            const idx = state.currentIndex;
+            const code = codes[idx];
+            if (!code) return;
+
+            const modeLabel = state.mode === 'similar' ? 'Similar' : 'Dissimilar';
+            const color = state.mode === 'similar' ? COLORS.green : COLORS.orange;
+
+            // Update UI
+            el.neighborZoneCode.textContent = code;
+            el.neighborMapLabel.textContent = `${modeLabel} ${idx + 1} of ${state.k}`;
+            updatePositionIndicator();
+            updateNavButtons();
+
+            // Set highlight color on right map
+            setHighlight(state.rightMap, code, COLORS.orange);
+
+            // Zoom to neighbor
+            const geo = await getNeighborGeo(code);
+            zoomToBbox(state.rightMap, geo);
+
+            // Update locator dot
+            if (geo) {
+                updateLocatorDot(locatorDotRight, geo.centroid_lon, geo.centroid_lat, COLORS.orange);
+            }
+        }
+
+        function updatePositionIndicator() {
+            el.positionIndicator.innerHTML =
+                `<span>${state.currentIndex + 1}</span> of <span>${state.k}</span>`;
+        }
+
+        function updateNavButtons() {
+            el.prevBtn.disabled = state.currentIndex <= 0;
+            el.nextBtn.disabled = state.currentIndex >= state.k - 1;
+        }
+
+        function navigatePrev() {
+            if (state.currentIndex > 0) {
+                state.currentIndex--;
+                showCurrentNeighbor();
+            }
+        }
+
+        function navigateNext() {
+            const codes = getCurrentCodes();
+            if (state.currentIndex < state.k - 1 && state.currentIndex < codes.length - 1) {
+                state.currentIndex++;
+                showCurrentNeighbor();
+            }
+        }
+
+        // ─── Mode Toggle ────────────────────────────────────────────────────
+        function toggleMode() {
+            if (state.mode === 'similar') {
+                state.mode = 'dissimilar';
+                el.modeBtn.dataset.mode = 'dissimilar';
+                el.modeValue.textContent = 'Most Dissimilar';
+            } else {
+                state.mode = 'similar';
+                el.modeBtn.dataset.mode = 'similar';
+                el.modeValue.textContent = 'Most Similar';
+            }
+
+            // Reset index and show new neighbor if in comparison view
+            if (state.selectedCode) {
+                state.currentIndex = 0;
+                showCurrentNeighbor();
+            }
+        }
+
+        // ─── Reset ──────────────────────────────────────────────────────────
+        function resetView() {
+            state.selectedCode = null;
+            state.selectedRow = null;
+            state.similarCodes = [];
+            state.dissimilarCodes = [];
+            state.currentIndex = 0;
+
+            el.comparisonView.classList.remove('visible');
+            el.landingView.classList.remove('hidden');
+
+            el.selectedZoneCode.textContent = '—';
+            el.neighborZoneCode.textContent = '—';
+
+            state.landingMap.resize();
+        }
+
+        // ─── Event Listeners ────────────────────────────────────────────────
+        function setupEventListeners() {
+            el.modeBtn.addEventListener('click', toggleMode);
+            el.prevBtn.addEventListener('click', navigatePrev);
+            el.nextBtn.addEventListener('click', navigateNext);
+            el.resetBtn.addEventListener('click', resetView);
+
+            el.kSlider.addEventListener('input', (e) => {
+                state.k = parseInt(e.target.value, 10);
+                el.kValue.textContent = state.k;
+
+                // Clamp current index
+                if (state.currentIndex >= state.k) {
+                    state.currentIndex = state.k - 1;
+                }
+
+                if (state.selectedCode) {
+                    showCurrentNeighbor();
+                }
+            });
+
+            el.tooltipToggle.addEventListener('change', (e) => {
+                state.showTooltips = e.target.checked;
+                if (!state.showTooltips) {
+                    el.areaTooltip.style.display = 'none';
+                }
+            });
+
+            // Keyboard shortcuts
+            document.addEventListener('keydown', (e) => {
+                if (!state.selectedCode) return;
+
+                if (e.key === 'ArrowLeft') {
+                    e.preventDefault();
+                    navigatePrev();
+                } else if (e.key === 'ArrowRight') {
+                    e.preventDefault();
+                    navigateNext();
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    resetView();
+                }
+            });
+        }
+
+        // ─── Init ───────────────────────────────────────────────────────────
+        async function main() {
+            setupEventListeners();
+            initLandingMap();
+
+            // Init DuckDB in background
+            try {
+                await initDuckDB();
+            } catch (err) {
+                console.error('Failed to init DuckDB:', err);
+                el.dbStatus.querySelector('span').textContent = 'Data engine failed to load';
+                el.dbStatus.querySelector('.spinner').style.display = 'none';
+            }
+        }
+
+        main();
+    </script>
+</body>
+</html>

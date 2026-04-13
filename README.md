@@ -1,21 +1,13 @@
 
 <img src="assets/Imago-logo.png" alt="Imago Logo" width="300"/>
 
-# Imago Template Repository
+# Imago Embedding UK Explorer
 
-Welcome to the Imago template repository!  
-This repository provides a starting point for open, collaborative outputs that support the use of satellite imagery.
+This repository contains the Imago Embedding UK Explorer. A tool to visualise
+dis/similarity of small areas in the UK using embeddings.
 
-## 🚀 How to Use This Template
-
-1. **Click "Use this template"** at the top of the repository page to create your own project based on this template.
-2. **Update project details** such as the title, description, and contact information in this README.
-3. **Review and adapt the [CONTRIBUTING.md](CONTRIBUTING.md)** file to match your project's contribution process.
-4. **Set up repository features**:
-   - Update issue and pull request templates in `.github/ISSUE_TEMPLATE/` and `.github/pull_request_template.md` as needed.
-   - Configure the [All Contributors Bot](https://allcontributors.org/) for contributor recognition.
-5. **Replace or add your own code, data, and documentation** in the appropriate folders.
-
+- Tool: https://Imago-SDRUK.github.com/embeddings-uk-explorer
+- Data Product: https://data.imago.ac.uk/datasets/google-satellite-embedding-v1-small-areas-2017-2024
 
 ## 🛠️ Contributing
 
@@ -44,6 +36,7 @@ See the [LICENSE](LICENSE) file for full details.
 
 ## 🗂️ Repository Structure
 
+- `app/` — Source code and data for the web app
 - `assets/` — Images, diagrams, and other media files
 - `.github/` — Community health files (issue/PR templates, workflows)
 - `CONTRIBUTING.md` — How to contribute to this project
@@ -51,19 +44,6 @@ See the [LICENSE](LICENSE) file for full details.
 - `LICENSE` — Licensing information
 - `README.md` — Project overview and instructions
 
-
-## 🎉 Acknowledging Contributors
-
-We use the [All Contributors Bot](https://allcontributors.org/) to recognize everyone’s work—code, docs, ideas, design, and more.  
-After your PR is merged, comment on an issue or PR:
-
-```
-@all-contributors please add @your-username for code, doc, etc.
-```
-(Replace `@your-username` and the contribution types as appropriate.)
-See the [emoji key](https://allcontributors.org/docs/en/emoji-key) for available contribution types.
-
-Thank you for helping us build open, collaborative, and impactful projects with Imago!
 
 <!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
 <!-- prettier-ignore-start -->
