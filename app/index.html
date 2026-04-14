@@ -605,6 +605,27 @@
             locatorRight: $('locator-right'),
         };
 
+        // ─── Fix: Firefox Range-request caching on GitHub Pages ────────────
+        // Firefox caches HTTP 206 partial responses and incorrectly serves
+        // later Range requests from the cached fragment, breaking PMTiles
+        // tile loading and DuckDB-WASM parquet reads.  Force cache bypass
+        // for every Range request so the browser always hits the network.
+        // See https://github.com/protomaps/PMTiles/issues/584
+        (function () {
+            const _fetch = window.fetch;
+            window.fetch = function (input, init) {
+                if (init && init.headers && !init.cache) {
+                    const h = init.headers instanceof Headers
+                        ? init.headers
+                        : new Headers(init.headers);
+                    if (h.has('Range')) {
+                        return _fetch.call(this, input, Object.assign({}, init, { cache: 'no-store' }));
+                    }
+                }
+                return _fetch.call(this, input, init);
+            };
+        })();
+
         // ─── PMTiles Protocol ───────────────────────────────────────────────
         const protocol = new pmtiles.Protocol();
         maplibregl.addProtocol('pmtiles', protocol.tile);
@@ -760,7 +781,18 @@
 
             // Fetch worker script as blob to avoid cross-origin Worker restriction
             const workerResponse = await fetch(bundle.mainWorker);
-            const workerBlob = new Blob([await workerResponse.text()], { type: 'application/javascript' });
+            let workerText = await workerResponse.text();
+
+            // Inject the same Range-request cache fix into the Worker context
+            // so DuckDB-WASM parquet HTTP reads also bypass Firefox's cache.
+            const rangeFix = '(function(){var f=self.fetch;self.fetch=function(i,o){'
+                + 'if(o&&o.headers&&!o.cache){var h=o.headers instanceof Headers'
+                + '?o.headers:new Headers(o.headers);if(h.has("Range"))return'
+                + ' f.call(this,i,Object.assign({},o,{cache:"no-store"}))}'
+                + 'return f.call(this,i,o)}})();\n';
+            workerText = rangeFix + workerText;
+
+            const workerBlob = new Blob([workerText], { type: 'application/javascript' });
             const workerUrl = URL.createObjectURL(workerBlob);
             const worker = new Worker(workerUrl);
 
