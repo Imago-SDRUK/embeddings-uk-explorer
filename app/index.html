@@ -904,11 +904,23 @@
                         { id: 'labels', type: 'raster', source: 'carto-labels' },
                     ],
                 },
-                bounds: [[-8.5, 49.8], [2.0, 61.0]],
-                fitBoundsOptions: { padding: 20 },
+                center: [-3.5, 55.5],
+                zoom: 4.8,
                 minZoom: 3,
                 maxBounds: [[-14, 47], [6, 63]],
                 attributionControl: true,
+            });
+
+            // Fit UK bounds to viewport on load and on resize
+            const UK_BOUNDS = [[-8.5, 49.8], [2.0, 61.0]];
+            state.landingMap.on('load', () => {
+                state.landingMap.fitBounds(UK_BOUNDS, { padding: 20, duration: 0 });
+            });
+            window.addEventListener('resize', () => {
+                if (state.landingMap && !el.landingView.classList.contains('hidden')) {
+                    state.landingMap.resize();
+                    state.landingMap.fitBounds(UK_BOUNDS, { padding: 20, duration: 0 });
+                }
             });
 
             state.landingMap.addControl(new maplibregl.NavigationControl(), 'top-left');
@@ -1297,6 +1309,7 @@
             el.neighborZoneCode.textContent = '—';
 
             state.landingMap.resize();
+            state.landingMap.fitBounds([[-8.5, 49.8], [2.0, 61.0]], { padding: 20, duration: 0 });
         }
 
         // ─── Event Listeners ────────────────────────────────────────────────
