@@ -6,7 +6,7 @@
 This repository contains the Imago Embedding UK Explorer. A tool to visualise
 dis/similarity of small areas in the UK using embeddings.
 
-- Tool: https://Imago-SDRUK.github.com/embeddings-uk-explorer
+- Tool: https://Imago-SDRUK.github.io/embeddings-uk-explorer
 - Data Product: https://data.imago.ac.uk/datasets/google-satellite-embedding-v1-small-areas-2017-2024
 
 ## 🛠️ Contributing
