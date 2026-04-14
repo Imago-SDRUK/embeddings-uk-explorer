@@ -904,9 +904,9 @@
                         { id: 'labels', type: 'raster', source: 'carto-labels' },
                     ],
                 },
-                center: [-3.5, 55.5],
-                zoom: 4.8,
-                minZoom: 4.8,
+                bounds: [[-8.5, 49.8], [2.0, 61.0]],
+                fitBoundsOptions: { padding: 20 },
+                minZoom: 3,
                 maxBounds: [[-14, 47], [6, 63]],
                 attributionControl: true,
             });
