@@ -883,11 +883,14 @@
       // later Range requests from the cached fragment, breaking PMTiles
       // tile loading and DuckDB-WASM parquet reads.  Force cache bypass
       // for every Range request so the browser always hits the network.
+      // The !init.cache guard is intentionally omitted: callers may already
+      // set cache:"no-cache" (which still allows 206 fragments to be served
+      // from Firefox's cache), so we must always upgrade to "no-store".
       // See https://github.com/protomaps/PMTiles/issues/584
       (function () {
         const _fetch = window.fetch;
         window.fetch = function (input, init) {
-          if (init && init.headers && !init.cache) {
+          if (init && init.headers) {
             const h =
               init.headers instanceof Headers
                 ? init.headers
@@ -1235,9 +1238,10 @@
 
         // Inject the same Range-request cache fix into the Worker context
         // so DuckDB-WASM parquet HTTP reads also bypass Firefox's cache.
+        // The !o.cache guard is intentionally omitted — see main-thread fix.
         const rangeFix =
           "(function(){var f=self.fetch;self.fetch=function(i,o){" +
-          "if(o&&o.headers&&!o.cache){var h=o.headers instanceof Headers" +
+          "if(o&&o.headers){var h=o.headers instanceof Headers" +
           '?o.headers:new Headers(o.headers);if(h.has("Range"))return' +
           ' f.call(this,i,Object.assign({},o,{cache:"no-store"}))}' +
           "return f.call(this,i,o)}})();\n";
