@@ -133,48 +133,43 @@
         display: none;
       }
 
-      .mode-btn {
+      .mode-pill {
+        display: flex;
         font-family: "JetBrains Mono", monospace;
         font-size: 12px;
-        padding: 8px 12px;
-        background: var(--bg-tertiary);
         border: 1px solid var(--border-color);
         border-radius: 6px;
-        color: var(--text-primary);
+        overflow: hidden;
+      }
+
+      .mode-pill-btn {
+        padding: 8px 14px;
+        background: var(--bg-tertiary);
+        border: none;
+        color: var(--text-muted);
         cursor: pointer;
         transition: all 0.2s ease;
-        display: flex;
-        align-items: center;
-        gap: 6px;
       }
 
-      .mode-btn:hover {
+      .mode-pill-btn:first-child {
+        border-right: 1px solid var(--border-color);
+      }
+
+      .mode-pill-btn:hover:not(.active) {
         background: var(--border-color);
-        border-color: var(--imago-green);
+        color: var(--text-primary);
       }
 
-      .mode-label {
-        color: var(--text-muted);
-      }
-      .mode-value {
+      .mode-pill-btn.active[data-mode="similar"] {
+        background: var(--bg-secondary);
         color: var(--imago-green);
-        font-weight: 500;
-      }
-      .mode-btn[data-mode="dissimilar"] .mode-value {
-        color: var(--imago-orange);
-      }
-      .mode-btn[data-mode="dissimilar"]:hover {
-        border-color: var(--imago-orange);
+        font-weight: 600;
       }
 
-      .mode-icon {
-        width: 14px;
-        height: 14px;
-        fill: none;
-        stroke: currentColor;
-        stroke-width: 2;
-        stroke-linecap: round;
-        stroke-linejoin: round;
+      .mode-pill-btn.active[data-mode="dissimilar"] {
+        background: var(--bg-secondary);
+        color: var(--imago-orange);
+        font-weight: 600;
       }
 
       /* ── Main content ────────────────────────────────────── */
@@ -675,13 +670,10 @@
             <div class="spinner"></div>
             <span>Loading data engine…</span>
           </div>
-          <button id="mode-btn" class="mode-btn" data-mode="similar">
-            <span class="mode-label">Finding:</span>
-            <span class="mode-value" id="mode-value">Most Similar</span>
-            <svg class="mode-icon" viewBox="0 0 24 24">
-              <polyline points="6,9 12,15 18,9" />
-            </svg>
-          </button>
+          <div class="mode-pill">
+            <button class="mode-pill-btn active" data-mode="similar" id="mode-similar-btn">Similar</button>
+            <button class="mode-pill-btn" data-mode="dissimilar" id="mode-dissimilar-btn">Dissimilar</button>
+          </div>
         </div>
       </header>
 
@@ -875,8 +867,8 @@
         nextBtn: $("next-btn"),
         positionIndicator: $("position-indicator"),
         resetBtn: $("reset-btn"),
-        modeBtn: $("mode-btn"),
-        modeValue: $("mode-value"),
+        modeSimilarBtn: $("mode-similar-btn"),
+        modeDissimilarBtn: $("mode-dissimilar-btn"),
         dbStatus: $("db-status"),
         tooltipToggle: $("tooltip-toggle"),
         areaTooltip: $("area-tooltip"),
@@ -1793,18 +1785,11 @@
       }
 
       // ─── Mode Toggle ────────────────────────────────────────────────────
-      function toggleMode() {
-        if (state.mode === "similar") {
-          state.mode = "dissimilar";
-          el.modeBtn.dataset.mode = "dissimilar";
-          el.modeValue.textContent = "Most Dissimilar";
-        } else {
-          state.mode = "similar";
-          el.modeBtn.dataset.mode = "similar";
-          el.modeValue.textContent = "Most Similar";
-        }
+      function setMode(mode) {
+        state.mode = mode;
+        el.modeSimilarBtn.classList.toggle("active", mode === "similar");
+        el.modeDissimilarBtn.classList.toggle("active", mode === "dissimilar");
 
-        // Reset index and show new neighbor if in comparison view
         if (state.selectedCode) {
           state.currentIndex = 0;
           showCurrentNeighbor();
@@ -1847,7 +1832,8 @@
           }
         });
 
-        el.modeBtn.addEventListener("click", toggleMode);
+        el.modeSimilarBtn.addEventListener("click", () => setMode("similar"));
+        el.modeDissimilarBtn.addEventListener("click", () => setMode("dissimilar"));
         el.prevBtn.addEventListener("click", navigatePrev);
         el.nextBtn.addEventListener("click", navigateNext);
         el.resetBtn.addEventListener("click", resetView);
