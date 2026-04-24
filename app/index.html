@@ -85,6 +85,13 @@
         height: 28px;
         display: flex;
         align-items: center;
+        cursor: pointer;
+        opacity: 1;
+        transition: opacity 0.2s ease;
+      }
+
+      .logo-icon:hover {
+        opacity: 0.75;
       }
       .logo-icon img {
         height: 100%;
@@ -538,19 +545,178 @@
       .maplibregl-ctrl-attrib a {
         color: var(--text-secondary) !important;
       }
+
+      /* ── About button ────────────────────────────────────── */
+      .about-btn {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 11px;
+        padding: 4px 10px;
+        background: transparent;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        color: var(--text-muted);
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+
+      .about-btn:hover {
+        border-color: var(--imago-green);
+        color: var(--imago-green);
+      }
+
+      /* ── About modal ─────────────────────────────────────── */
+      .about-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.55);
+        z-index: 10000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .about-overlay.hidden {
+        display: none;
+      }
+
+      .about-modal {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 28px 32px;
+        max-width: 520px;
+        width: 90%;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        position: relative;
+      }
+
+      @media (max-width: 480px) {
+        .about-modal {
+          padding: 20px 18px;
+          width: 95%;
+          border-radius: 6px;
+        }
+      }
+
+      .about-modal h2 {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--imago-green);
+        margin-bottom: 16px;
+      }
+
+      .about-modal p {
+        font-size: 16px;
+        line-height: 1.7;
+        color: var(--text-secondary);
+        margin-bottom: 14px;
+      }
+
+      .about-modal a {
+        color: var(--imago-green);
+        text-decoration: none;
+      }
+
+      .about-modal a:hover {
+        text-decoration: underline;
+      }
+
+      .about-modal ul {
+        list-style: none;
+        padding: 0;
+        margin-bottom: 14px;
+      }
+
+      .about-modal ul li {
+        font-size: 15px;
+        color: var(--text-secondary);
+        padding: 4px 0;
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+      }
+
+      .about-modal ul li::before {
+        content: "→";
+        color: var(--imago-green);
+        font-family: "JetBrains Mono", monospace;
+        font-size: 11px;
+        flex-shrink: 0;
+      }
+
+      .about-data-btn {
+        display: block;
+        margin-top: 20px;
+        padding: 12px 20px;
+        background: transparent;
+        border: 1px solid var(--imago-green);
+        border-radius: 6px;
+        color: var(--imago-green);
+        font-size: 14px;
+        text-decoration: none;
+        text-align: center;
+        transition: all 0.2s ease;
+      }
+
+      .about-data-btn:hover {
+        background: var(--imago-green);
+        color: var(--bg-primary);
+        text-decoration: none;
+      }
+
+      .about-footer {
+        margin-top: 20px;
+        padding-top: 16px;
+        border-top: 1px solid var(--border-color);
+        font-size: 12px;
+        color: var(--text-muted);
+        text-align: center;
+      }
+
+      .about-footer a {
+        color: var(--text-muted);
+        text-decoration: underline;
+      }
+
+      .about-footer a:hover {
+        color: var(--text-secondary);
+      }
+
+      .about-close-btn {
+        position: absolute;
+        top: 14px;
+        right: 16px;
+        background: none;
+        border: none;
+        color: var(--text-muted);
+        font-size: 18px;
+        cursor: pointer;
+        line-height: 1;
+        padding: 2px 6px;
+        border-radius: 4px;
+        transition: color 0.15s ease;
+      }
+
+      .about-close-btn:hover {
+        color: var(--text-primary);
+      }
     </style>
   </head>
   <body>
     <div class="app-container">
       <header>
         <div class="header-left">
-          <div class="logo-icon">
+          <a href="https://imago.ac.uk" target="_blank" rel="noopener" class="logo-icon">
             <img
               src="https://imago.ac.uk/static/ui/imago_logo.png"
               alt="IMAGO Data Service"
             />
-          </div>
+          </a>
           <h1>Imago UK similarity explorer</h1>
+          <button id="about-btn" class="about-btn">About</button>
         </div>
         <div class="header-right">
           <div id="db-status" class="db-status">
@@ -648,6 +814,48 @@
       </div>
     </div>
 
+    <!-- About Modal -->
+    <div id="about-overlay" class="about-overlay hidden">
+      <div class="about-modal" role="dialog" aria-modal="true" aria-labelledby="about-title">
+        <button id="about-close-btn" class="about-close-btn" aria-label="Close">&times;</button>
+        <h2 id="about-title">Imago UK Similarity Explorer</h2>
+        <p>
+          This tool lets you explore the dis/similarity of small areas in the
+          UK. Browse the map and click on an area of your liking. The tool
+          will take you to a view where you can compare it to the most similar
+          one found in the UK. Use the buttons on the bottom left to flick
+          through the next most similar, and then the next most similar, and
+          so on, you have 100 to go through for each. Then switch between
+          exploring the most similar and most dissimilar areas with the button
+          on the top right of the tool. When you want to switch to explore
+          another area, click on "Reset View" on the bottom right.
+        </p>
+
+        <p>
+          Underneath all of this are satellite embeddings, compressed
+          representations of images taken from satellite, that can be compared
+          with each other to ascertain how different two areas are. We use our
+          <a href="https://data.imago.ac.uk/datasets/google-satellite-embedding-v1-small-areas-2017-2024" target="_blank" rel="noopener">
+            small area product
+          </a>, which is based on Google's <a
+                  href="https://developers.google.com/earth-engine/datasets/catalog/GOOGLE_SATELLITE_EMBEDDING_V1_ANNUAL">Satellite
+                  Embedding V1</a>.
+        </p>
+
+        <a
+          href="https://data.imago.ac.uk/datasets/google-satellite-embedding-v1-small-areas-2017-2024"
+          target="_blank"
+          rel="noopener"
+          class="about-data-btn"
+        >
+          Access the embeddings data product behind this tool →
+        </a>
+
+        <p class="about-footer">Found a bug? <a href="https://github.com/Imago-SDRUK/embeddings-uk-explorer/issues/new/choose" target="_blank" rel="noopener">Tell us about it!</a></p>
+
+      </div>
+    </div>
+
     <div class="loading-overlay" id="loading">
       <div class="loading-spinner"></div>
       <div class="loading-text" id="loading-text">
@@ -714,6 +922,9 @@
       // ─── DOM ────────────────────────────────────────────────────────────
       const $ = (id) => document.getElementById(id);
       const el = {
+        aboutBtn: $("about-btn"),
+        aboutOverlay: $("about-overlay"),
+        aboutCloseBtn: $("about-close-btn"),
         landingView: $("landing-view"),
         comparisonView: $("comparison-view"),
         landingMapDiv: $("landing-map"),
@@ -1684,6 +1895,22 @@
 
       // ─── Event Listeners ────────────────────────────────────────────────
       function setupEventListeners() {
+        el.aboutBtn.addEventListener("click", () =>
+          el.aboutOverlay.classList.remove("hidden"),
+        );
+        el.aboutCloseBtn.addEventListener("click", () =>
+          el.aboutOverlay.classList.add("hidden"),
+        );
+        el.aboutOverlay.addEventListener("click", (e) => {
+          if (e.target === el.aboutOverlay)
+            el.aboutOverlay.classList.add("hidden");
+        });
+        document.addEventListener("keydown", (e) => {
+          if (e.key === "Escape" && !el.aboutOverlay.classList.contains("hidden")) {
+            el.aboutOverlay.classList.add("hidden");
+          }
+        });
+
         el.modeBtn.addEventListener("click", toggleMode);
         el.prevBtn.addEventListener("click", navigatePrev);
         el.nextBtn.addEventListener("click", navigateNext);
@@ -1713,6 +1940,7 @@
         // Keyboard shortcuts
         document.addEventListener("keydown", (e) => {
           if (!state.selectedCode) return;
+          if (!el.aboutOverlay.classList.contains("hidden")) return;
 
           if (e.key === "ArrowLeft") {
             e.preventDefault();
