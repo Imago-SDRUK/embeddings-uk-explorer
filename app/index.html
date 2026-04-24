@@ -337,54 +337,6 @@
         letter-spacing: 0.5px;
       }
 
-      .k-slider-container {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-      }
-
-      .k-slider {
-        width: 120px;
-        height: 4px;
-        -webkit-appearance: none;
-        appearance: none;
-        background: var(--bg-tertiary);
-        border-radius: 2px;
-        outline: none;
-      }
-
-      .k-slider::-webkit-slider-thumb {
-        -webkit-appearance: none;
-        appearance: none;
-        width: 16px;
-        height: 16px;
-        background: var(--imago-green);
-        border-radius: 50%;
-        cursor: pointer;
-        transition: transform 0.15s ease;
-      }
-
-      .k-slider::-webkit-slider-thumb:hover {
-        transform: scale(1.2);
-      }
-
-      .k-slider::-moz-range-thumb {
-        width: 16px;
-        height: 16px;
-        background: var(--imago-green);
-        border: none;
-        border-radius: 50%;
-        cursor: pointer;
-      }
-
-      .k-value {
-        font-family: "JetBrains Mono", monospace;
-        font-size: 14px;
-        font-weight: 600;
-        color: var(--imago-green);
-        min-width: 24px;
-        text-align: center;
-      }
 
       .nav-controls {
         display: flex;
@@ -776,20 +728,6 @@
           </div>
           <div class="controls-panel">
             <div class="control-group">
-              <span class="control-label">k value</span>
-              <div class="k-slider-container">
-                <input
-                  type="range"
-                  id="k-slider"
-                  class="k-slider"
-                  min="1"
-                  max="100"
-                  value="10"
-                />
-                <span id="k-value" class="k-value">10</span>
-              </div>
-            </div>
-            <div class="control-group">
               <div class="nav-controls">
                 <button id="prev-btn" class="nav-btn" disabled>
                   <svg viewBox="0 0 24 24">
@@ -909,7 +847,7 @@
 
         mode: "similar",
         currentIndex: 0,
-        k: 10,
+        k: 100,
 
         landingMap: null,
         leftMap: null,
@@ -933,8 +871,6 @@
         selectedZoneCode: $("selected-zone-code"),
         neighborZoneCode: $("neighbor-zone-code"),
         neighborMapLabel: $("neighbor-map-label"),
-        kSlider: $("k-slider"),
-        kValue: $("k-value"),
         prevBtn: $("prev-btn"),
         nextBtn: $("next-btn"),
         positionIndicator: $("position-indicator"),
@@ -1915,20 +1851,6 @@
         el.prevBtn.addEventListener("click", navigatePrev);
         el.nextBtn.addEventListener("click", navigateNext);
         el.resetBtn.addEventListener("click", resetView);
-
-        el.kSlider.addEventListener("input", (e) => {
-          state.k = parseInt(e.target.value, 10);
-          el.kValue.textContent = state.k;
-
-          // Clamp current index
-          if (state.currentIndex >= state.k) {
-            state.currentIndex = state.k - 1;
-          }
-
-          if (state.selectedCode) {
-            showCurrentNeighbor();
-          }
-        });
 
         el.tooltipToggle.addEventListener("change", (e) => {
           state.showTooltips = e.target.checked;
