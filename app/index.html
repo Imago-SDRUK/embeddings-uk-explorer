@@ -1658,8 +1658,6 @@
 
           // Pre-fetch geo for all neighbors in one batch query so that
           // getNeighborGeo() always hits the cache without extra DB calls.
-          // Querying NEIGHBORS_URL (already open in DuckDB) avoids opening
-          // area_centroids.parquet and reuses DuckDB's buffer cache.
           const allNeighborCodes = [
             ...state.similarCodes,
             ...state.dissimilarCodes,
@@ -1672,7 +1670,7 @@
             const geoRows = await queryAll(
               `SELECT area_code, centroid_lon, centroid_lat, ` +
                 `bbox_minx, bbox_miny, bbox_maxx, bbox_maxy ` +
-                `FROM '${NEIGHBORS_URL}' WHERE area_code IN (${placeholders})`,
+                `FROM '${CENTROIDS_URL}' WHERE area_code IN (${placeholders})`,
             );
             for (const r of geoRows) {
               state.neighborGeoCache[r.area_code] = {
@@ -1750,12 +1748,11 @@
         if (state.neighborGeoCache[code]) return state.neighborGeoCache[code];
 
         // Fallback: should normally be pre-populated by selectArea's batch query.
-        // Use NEIGHBORS_URL (already open in DuckDB) to avoid opening a new file.
         try {
           const row = await queryOne(
             `SELECT area_code, centroid_lon, centroid_lat, ` +
               `bbox_minx, bbox_miny, bbox_maxx, bbox_maxy ` +
-              `FROM '${NEIGHBORS_URL}' WHERE area_code = '${code}'`,
+              `FROM '${CENTROIDS_URL}' WHERE area_code = '${code}'`,
           );
           if (row) {
             state.neighborGeoCache[code] = {
@@ -1923,6 +1920,17 @@
 
       // ─── Init ───────────────────────────────────────────────────────────
       async function main() {
+        // Register Service Worker as early as possible so it controls the page
+        // (and the DuckDB blob worker) before any HTTPFS range requests are made.
+        // The SW intercepts ALL Range requests — regardless of whether DuckDB uses
+        // fetch or XHR internally — and forces cache:'no-store', which bypasses
+        // Firefox's HTTP 206 partial-response caching bug.
+        if ("serviceWorker" in navigator) {
+          navigator.serviceWorker.register("./sw.js").catch((err) => {
+            console.warn("Service Worker registration failed:", err);
+          });
+        }
+
         setupEventListeners();
         initLandingMap();
 
