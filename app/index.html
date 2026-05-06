@@ -890,6 +890,17 @@
       (function () {
         const _fetch = window.fetch;
         window.fetch = function (input, init) {
+          // Handle fetch(Request) where Range header is embedded in the Request
+          if (input instanceof Request && !init) {
+            if (input.headers.has("Range")) {
+              return _fetch.call(
+                this,
+                new Request(input, { cache: "no-store" }),
+              );
+            }
+            return _fetch.call(this, input);
+          }
+          // Handle fetch(url, init) where Range header is in init
           if (init && init.headers) {
             const h =
               init.headers instanceof Headers
@@ -1241,6 +1252,9 @@
         // The !o.cache guard is intentionally omitted — see main-thread fix.
         const rangeFix =
           "(function(){var f=self.fetch;self.fetch=function(i,o){" +
+          "if(i instanceof Request&&!o){if(i.headers.has('Range'))" +
+          "return f.call(this,new Request(i,{cache:'no-store'}));" +
+          "return f.call(this,i)}" +
           "if(o&&o.headers){var h=o.headers instanceof Headers" +
           '?o.headers:new Headers(o.headers);if(h.has("Range"))return' +
           ' f.call(this,i,Object.assign({},o,{cache:"no-store"}))}' +
@@ -1642,6 +1656,37 @@
             bbox_maxy: row.bbox_maxy,
           };
 
+          // Pre-fetch geo for all neighbors in one batch query so that
+          // getNeighborGeo() always hits the cache without extra DB calls.
+          // Querying NEIGHBORS_URL (already open in DuckDB) avoids opening
+          // area_centroids.parquet and reuses DuckDB's buffer cache.
+          const allNeighborCodes = [
+            ...state.similarCodes,
+            ...state.dissimilarCodes,
+          ];
+          if (allNeighborCodes.length > 0) {
+            el.loadingText.textContent = "Loading neighbor data…";
+            const placeholders = allNeighborCodes
+              .map((c) => `'${c}'`)
+              .join(", ");
+            const geoRows = await queryAll(
+              `SELECT area_code, centroid_lon, centroid_lat, ` +
+                `bbox_minx, bbox_miny, bbox_maxx, bbox_maxy ` +
+                `FROM '${NEIGHBORS_URL}' WHERE area_code IN (${placeholders})`,
+            );
+            for (const r of geoRows) {
+              state.neighborGeoCache[r.area_code] = {
+                centroid_lon: r.centroid_lon,
+                centroid_lat: r.centroid_lat,
+                bbox_minx: r.bbox_minx,
+                bbox_miny: r.bbox_miny,
+                bbox_maxx: r.bbox_maxx,
+                bbox_maxy: r.bbox_maxy,
+              };
+            }
+            console.log(`Prefetched geo for ${geoRows.length} neighbors`);
+          }
+
           state.currentIndex = 0;
 
           // Switch to comparison view
@@ -1704,19 +1749,28 @@
       async function getNeighborGeo(code) {
         if (state.neighborGeoCache[code]) return state.neighborGeoCache[code];
 
-        const row = await queryOne(
-          `SELECT * FROM '${CENTROIDS_URL}' WHERE area_code = '${code}'`,
-        );
-
-        if (row) {
-          state.neighborGeoCache[code] = {
-            centroid_lon: row.centroid_lon,
-            centroid_lat: row.centroid_lat,
-            bbox_minx: row.bbox_minx,
-            bbox_miny: row.bbox_miny,
-            bbox_maxx: row.bbox_maxx,
-            bbox_maxy: row.bbox_maxy,
-          };
+        // Fallback: should normally be pre-populated by selectArea's batch query.
+        // Use NEIGHBORS_URL (already open in DuckDB) to avoid opening a new file.
+        try {
+          const row = await queryOne(
+            `SELECT area_code, centroid_lon, centroid_lat, ` +
+              `bbox_minx, bbox_miny, bbox_maxx, bbox_maxy ` +
+              `FROM '${NEIGHBORS_URL}' WHERE area_code = '${code}'`,
+          );
+          if (row) {
+            state.neighborGeoCache[code] = {
+              centroid_lon: row.centroid_lon,
+              centroid_lat: row.centroid_lat,
+              bbox_minx: row.bbox_minx,
+              bbox_miny: row.bbox_miny,
+              bbox_maxx: row.bbox_maxx,
+              bbox_maxy: row.bbox_maxy,
+            };
+          } else {
+            console.warn("getNeighborGeo: no row found for", code);
+          }
+        } catch (err) {
+          console.error("getNeighborGeo error for", code, err);
         }
         return state.neighborGeoCache[code] || null;
       }
