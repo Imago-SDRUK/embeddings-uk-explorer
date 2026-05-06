@@ -802,6 +802,9 @@
       const DATA_BASE_URL = new URL("./", window.location.href).href;
       const NEIGHBORS_URL = `${DATA_BASE_URL}neighbors_2024.parquet`;
       const CENTROIDS_URL = `${DATA_BASE_URL}area_centroids.parquet`;
+      // Local VFS name used after the file is registered with DuckDB
+      // (avoids HTTPFS range requests entirely)
+      const NEIGHBORS_LOCAL = "neighbors.parquet";
 
       const UK_BOUNDS = [
         [-8.2, 49.5],
@@ -1271,6 +1274,26 @@
         const db = new duckdb.AsyncDuckDB(logger, worker);
         await db.instantiate(bundle.mainModule);
 
+        // Download the parquet file on the main thread so DuckDB never needs to
+        // make its own HTTP range requests (HTTPFS). Firefox incorrectly caches
+        // HTTP 206 partial-content responses from GitHub Pages CDN, corrupting
+        // DuckDB's sequential range reads. Downloading once via the main-thread
+        // fetch (which has the cache:no-store patch) and registering the buffer
+        // in DuckDB's local VFS avoids the HTTPFS path entirely.
+        console.log("Downloading neighbor data…");
+        const neighborsBuffer = await fetch(NEIGHBORS_URL, { cache: "no-store" })
+          .then((r) => {
+            if (!r.ok) throw new Error(`HTTP ${r.status} fetching neighbors`);
+            return r.arrayBuffer();
+          });
+        await db.registerFileBuffer(
+          NEIGHBORS_LOCAL,
+          new Uint8Array(neighborsBuffer),
+        );
+        console.log(
+          `Registered ${(neighborsBuffer.byteLength / 1e6).toFixed(1)} MB neighbors buffer`,
+        );
+
         const conn = await db.connect();
 
         state.db = conn;
@@ -1611,7 +1634,7 @@
         try {
           // Query neighbors
           const row = await queryOne(
-            `SELECT * FROM '${NEIGHBORS_URL}' WHERE area_code = '${code}'`,
+            `SELECT * FROM '${NEIGHBORS_LOCAL}' WHERE area_code = '${code}'`,
           );
 
           if (!row) {
@@ -1658,8 +1681,6 @@
 
           // Pre-fetch geo for all neighbors in one batch query so that
           // getNeighborGeo() always hits the cache without extra DB calls.
-          // Querying NEIGHBORS_URL (already open in DuckDB) avoids opening
-          // area_centroids.parquet and reuses DuckDB's buffer cache.
           const allNeighborCodes = [
             ...state.similarCodes,
             ...state.dissimilarCodes,
@@ -1672,7 +1693,7 @@
             const geoRows = await queryAll(
               `SELECT area_code, centroid_lon, centroid_lat, ` +
                 `bbox_minx, bbox_miny, bbox_maxx, bbox_maxy ` +
-                `FROM '${NEIGHBORS_URL}' WHERE area_code IN (${placeholders})`,
+                `FROM '${NEIGHBORS_LOCAL}' WHERE area_code IN (${placeholders})`,
             );
             for (const r of geoRows) {
               state.neighborGeoCache[r.area_code] = {
@@ -1750,12 +1771,11 @@
         if (state.neighborGeoCache[code]) return state.neighborGeoCache[code];
 
         // Fallback: should normally be pre-populated by selectArea's batch query.
-        // Use NEIGHBORS_URL (already open in DuckDB) to avoid opening a new file.
         try {
           const row = await queryOne(
             `SELECT area_code, centroid_lon, centroid_lat, ` +
               `bbox_minx, bbox_miny, bbox_maxx, bbox_maxy ` +
-              `FROM '${NEIGHBORS_URL}' WHERE area_code = '${code}'`,
+              `FROM '${NEIGHBORS_LOCAL}' WHERE area_code = '${code}'`,
           );
           if (row) {
             state.neighborGeoCache[code] = {
