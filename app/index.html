@@ -1266,17 +1266,17 @@
       }
 
       function arrowTableToObjects(table) {
-        const columns = table.schema.fields.map((f) => f.name);
-        const rows = [];
-        for (let i = 0; i < table.numRows; i++) {
+        // Table.toArray() uses Arrow's own row-serialisation path, which
+        // correctly decodes dictionary-encoded string columns in all browsers.
+        // The per-cell vector.get(i) approach mishandles those types in Firefox.
+        const fields = table.schema.fields.map((f) => f.name);
+        return table.toArray().map((row) => {
           const obj = {};
-          for (const col of columns) {
-            const val = table.getChild(col).get(i);
-            obj[col] = val;
+          for (const col of fields) {
+            obj[col] = row[col] ?? null;
           }
-          rows.push(obj);
-        }
-        return rows;
+          return obj;
+        });
       }
 
       async function queryOne(sql) {
