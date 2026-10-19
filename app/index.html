@@ -1311,13 +1311,14 @@
           style: {
             version: 8,
             sources: {
-              osm: {
+              esri: {
                 type: "raster",
-                tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+                tiles: [
+                  "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+                ],
                 tileSize: 256,
-                maxzoom: 19,
-                attribution:
-                  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                maxzoom: 16,
+                attribution: "Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ",
               },
               areas: {
                 type: "vector",
@@ -1326,7 +1327,7 @@
               },
             },
             layers: [
-              { id: "basemap", type: "raster", source: "osm" },
+              { id: "basemap", type: "raster", source: "esri" },
               {
                 id: "areas-fill",
                 type: "fill",
