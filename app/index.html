@@ -1311,23 +1311,13 @@
           style: {
             version: 8,
             sources: {
-              carto: {
+              osm: {
                 type: "raster",
-                tiles: [
-                  "https://a.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}@2x.png",
-                  "https://b.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}@2x.png",
-                ],
+                tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
                 tileSize: 256,
+                maxzoom: 19,
                 attribution:
-                  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-              },
-              "carto-labels": {
-                type: "raster",
-                tiles: [
-                  "https://a.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}@2x.png",
-                  "https://b.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}@2x.png",
-                ],
-                tileSize: 256,
+                  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
               },
               areas: {
                 type: "vector",
@@ -1336,7 +1326,7 @@
               },
             },
             layers: [
-              { id: "basemap", type: "raster", source: "carto" },
+              { id: "basemap", type: "raster", source: "osm" },
               {
                 id: "areas-fill",
                 type: "fill",
@@ -1397,7 +1387,6 @@
                   ],
                 },
               },
-              { id: "labels", type: "raster", source: "carto-labels" },
             ],
           },
           center: [-3.5, 55.5],
