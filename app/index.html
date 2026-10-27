@@ -808,6 +808,21 @@
         [2.0, 61.2],
       ];
 
+      // Optional landing view from the URL, e.g. ?lon=-2.98&lat=53.40&zoom=11
+      // Falls back to the full UK extent when absent or invalid.
+      const URL_VIEW = (() => {
+        const params = new URLSearchParams(window.location.search);
+        const lon = parseFloat(params.get("lon"));
+        const lat = parseFloat(params.get("lat"));
+        const zoom = parseFloat(params.get("zoom"));
+        if (!Number.isFinite(lon) || !Number.isFinite(lat)) return null;
+        if (Math.abs(lon) > 180 || Math.abs(lat) > 90) return null;
+        return {
+          center: [lon, lat],
+          zoom: Number.isFinite(zoom) ? Math.min(Math.max(zoom, 3), 16) : 10,
+        };
+      })();
+
       const BASEMAPS = {
         positron:
           "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
@@ -1305,6 +1320,14 @@
       }
 
       // ─── Landing Map ────────────────────────────────────────────────────
+      function fitLandingView() {
+        if (URL_VIEW) {
+          state.landingMap.jumpTo(URL_VIEW);
+        } else {
+          state.landingMap.fitBounds(UK_BOUNDS, { padding: 20, duration: 0 });
+        }
+      }
+
       function initLandingMap() {
         state.landingMap = new maplibregl.Map({
           container: el.landingMapDiv,
@@ -1390,23 +1413,21 @@
               },
             ],
           },
-          center: [-3.5, 55.5],
-          zoom: 4.8,
+          center: URL_VIEW ? URL_VIEW.center : [-3.5, 55.5],
+          zoom: URL_VIEW ? URL_VIEW.zoom : 4.8,
           minZoom: 3,
           attributionControl: true,
         });
 
         // Fit UK bounds to viewport on load and on resize
-        state.landingMap.on("load", () => {
-          state.landingMap.fitBounds(UK_BOUNDS, { padding: 20, duration: 0 });
-        });
+        state.landingMap.on("load", fitLandingView);
         window.addEventListener("resize", () => {
           if (
             state.landingMap &&
             !el.landingView.classList.contains("hidden")
           ) {
             state.landingMap.resize();
-            state.landingMap.fitBounds(UK_BOUNDS, { padding: 20, duration: 0 });
+            fitLandingView();
           }
         });
 
@@ -1856,7 +1877,7 @@
         el.neighborZoneCode.textContent = "—";
 
         state.landingMap.resize();
-        state.landingMap.fitBounds(UK_BOUNDS, { padding: 20, duration: 0 });
+        fitLandingView();
       }
 
       // ─── Event Listeners ────────────────────────────────────────────────
